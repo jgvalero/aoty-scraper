@@ -6,35 +6,43 @@ headers = {
 }
 
 base_url = "https://www.albumoftheyear.org/ratings/user-highest-rated/all/{}/"
-page = 1
-min_score = 90
+min_score = 80
 
-result = []
-stop = False
 
-while not stop:
-    url = base_url.format(page)
-    r = requests.get(url, headers=headers)
-    print(url)
-    html_content = r.text
+def get_albums():
+    page = 1
+    with requests.Session() as s:
+        stop = False
+        while not stop:
+            url = base_url.format(page)
+            r = s.get(url, headers=headers)
+            print(url)
+            html_content = r.text
 
-    soup = BeautifulSoup(html_content, "lxml")
-    elements = soup.findAll("div", class_="albumListRow")
+            soup = BeautifulSoup(html_content, "lxml")
+            elements = soup.findAll("div", class_="albumListRow")
 
-    for element in elements:
-        title = element.find("h2", class_="albumListTitle").text
-        title = " ".join(title.split()[1:])
-        score = element.find("div", class_="scoreValue").text
-        ratings = element.find("div", class_="scoreText").text
+            for element in elements:
+                title = element.find("h2", class_="albumListTitle").text
+                title = " ".join(title.split()[1:])
+                score = element.find("div", class_="scoreValue").text
+                ratings = element.find("div", class_="scoreText").text
 
-        ratings = "".join(c for c in ratings if c.isdigit())
-        if int(score) < min_score:
-            stop = True
-            break
-        if int(ratings) >= 1000:
-            result.append([title, score, ratings])
+                ratings = "".join(c for c in ratings if c.isdigit())
+                if int(score) < min_score:
+                    stop = True
+                    break
+                if int(ratings) >= 1000:
+                    yield title, score, ratings
 
-    page += 1
+            page += 1
 
-for i, item in enumerate(result, start=1):
-    print(f"{i}. {item[0]} [Score: {item[1]}, Ratings: {item[2]}]")
+
+filename = f"min_score_{min_score}.txt"
+with open(filename, "w") as f:
+    for i, (title, score, ratings) in enumerate(get_albums(), start=1):
+        line = f"{i}. {title} [Score: {score}, Ratings: {ratings}\n"
+        print(line, end="")
+        f.write(line)
+
+print(f"Results also written to {filename}")
