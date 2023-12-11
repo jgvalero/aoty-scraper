@@ -5,12 +5,41 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.3"
 }
 
-base_url = "https://www.albumoftheyear.org/ratings/user-highest-rated/all/{}/"
-min_score = 80
+
+class Album:
+    def __init__(self, artist, title, score, ratings):
+        self.artist = artist
+        self.title = title
+        self.score = score
+        self.ratings = ratings
 
 
-def get_albums():
+class Query:
+    def __init__(self, year="", genre="", min_score=80):
+        self.year = year
+        self.genre = genre
+        self.min_score = min_score
+        self.url = self.generate_url()
+        self.list = []
+
+    def generate_url(self):
+        if self.year == "" and self.genre == "":
+            url = "https://www.albumoftheyear.org/ratings/user-highest-rated/all/"
+        elif self.year == "":
+            url = f"https://www.albumoftheyear.org/ratings/user-highest-rated/all/{self.genre}/"
+        elif self.genre == "":
+            url = f"https://www.albumoftheyear.org/ratings/user-highest-rated/{self.year}/"
+        else:
+            url = f"https://www.albumoftheyear.org/ratings/user-highest-rated/{self.year}/{self.genre}/"
+        return url + "{}/"
+
+    def generate_list(self):
+        self.list = get_albums(self.url, self.min_score)
+
+
+def get_albums(base_url, min_score):
     page = 1
+    albums = []
     with requests.Session() as s:
         stop = False
         while not stop:
@@ -25,24 +54,23 @@ def get_albums():
             for element in elements:
                 title = element.find("h2", class_="albumListTitle").text
                 title = " ".join(title.split()[1:])
+                artist, title = title.split(" - ", 1)
                 score = element.find("div", class_="scoreValue").text
                 ratings = element.find("div", class_="scoreText").text
-
                 ratings = "".join(c for c in ratings if c.isdigit())
                 if int(score) < min_score:
                     stop = True
                     break
                 if int(ratings) >= 1000:
-                    yield title, score, ratings
+                    albums.append(Album(artist, title, score, ratings))
 
             page += 1
+    return albums
 
 
-filename = f"min_score_{min_score}.txt"
-with open(filename, "w") as f:
-    for i, (title, score, ratings) in enumerate(get_albums(), start=1):
-        line = f"{i}. {title} [Score: {score}, Ratings: {ratings}\n"
-        print(line, end="")
-        f.write(line)
-
-print(f"Results also written to {filename}")
+query = Query(genre="rock", min_score=80)
+query.generate_list()
+for album in query.list:
+    print(
+        f"{album.artist} - {album.title} [Score: {album.score}, Ratings: {album.ratings}]"
+    )
