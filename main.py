@@ -15,10 +15,11 @@ class Album:
 
 
 class Query:
-    def __init__(self, year="", genre="", min_score=80):
+    def __init__(self, year="", genre="", min_score=80, min_ratings=1000):
         self.year = year
         self.genre = genre
         self.min_score = min_score
+        self.min_ratings = min_ratings
         self.url = self.generate_url()
         self.list = []
 
@@ -34,41 +35,43 @@ class Query:
         return url + "{}/"
 
     def generate_list(self):
-        self.list = get_albums(self.url, self.min_score)
+        self.list = get_albums(self.url, self.min_score, self.min_ratings)
 
 
-def get_albums(base_url, min_score):
+def get_albums(base_url, min_score, min_ratings):
     page = 1
     albums = []
     with requests.Session() as s:
-        stop = False
-        while not stop:
+        while True:
             url = base_url.format(page)
             r = s.get(url, headers=headers)
             print(url)
             html_content = r.text
 
             soup = BeautifulSoup(html_content, "lxml")
-            elements = soup.findAll("div", class_="albumListRow")
+            elements = soup.select("div.albumListRow")
 
             for element in elements:
-                title = element.find("h2", class_="albumListTitle").text
-                title = " ".join(title.split()[1:])
-                artist, title = title.split(" - ", 1)
-                score = element.find("div", class_="scoreValue").text
-                ratings = element.find("div", class_="scoreText").text
-                ratings = "".join(c for c in ratings if c.isdigit())
-                if int(score) < min_score:
-                    stop = True
-                    break
-                if int(ratings) >= 1000:
-                    albums.append(Album(artist, title, score, ratings))
+                album = parse_album(element)
+                if int(album.score) < min_score:
+                    return albums
+                if int(album.ratings) >= min_ratings:
+                    albums.append(album)
 
             page += 1
-    return albums
 
 
-query = Query(genre="rock", min_score=80)
+def parse_album(element):
+    title = element.find("h2", class_="albumListTitle").text
+    title = " ".join(title.split()[1:])
+    artist, title = title.split(" - ", 1)
+    score = element.find("div", class_="scoreValue").text
+    ratings = element.find("div", class_="scoreText").text
+    ratings = "".join(c for c in ratings if c.isdigit())
+    return Album(artist, title, score, ratings)
+
+
+query = Query(min_score=80)
 query.generate_list()
 for album in query.list:
     print(
